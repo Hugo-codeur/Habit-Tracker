@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker — Dashboard Premium</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-deep: #0d1340; --bg-card: #111a52; --bg-row-odd: #131d5a; --bg-row-even: #0f1748;
+    --accent-green: #00e676; --accent-green2: #00c853; --accent-pink: #f06292;
+    --text-primary: #e8eaf6; --text-muted: #7986cb; --text-dim: #5c6bc0;
+    --border: rgba(121,134,203,0.18); --check-bg: rgba(255,255,255,0.06);
+    --check-border: rgba(121,134,203,0.4); --shadow: 0 8px 32px rgba(0,0,0,0.45);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg-deep); color: var(--text-primary); font-family: 'Lato', sans-serif; font-size: 13px; padding: 24px 16px; }
+
+  .tracker-wrap { max-width: 1450px; margin: 0 auto; background: var(--bg-card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; border: 1px solid var(--border); }
+  
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; background: var(--bg-deep); border-bottom: 1px solid var(--border); }
+  .top-bar h1 { font-weight: 900; font-size: 22px; color: var(--text-primary); }
+  .top-bar h1 span { color: var(--accent-green); }
+
+  .date-pickers select { background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border); border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+
+  .table-scroll { overflow-x: auto; }
+  table.habit-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .col-habit { width: 320px; }
+  .col-day { width: 35px; }
+
+  thead th { padding: 12px 0; background: var(--bg-deep); color: var(--text-muted); font-size: 11px; border-bottom: 1px solid var(--border); }
+  tbody tr:nth-child(odd) { background: var(--bg-row-odd); }
+  tbody tr:nth-child(even) { background: var(--bg-row-even); }
+
+  /* --- AJUSTEMENT : TAILLE MOYENNE --- */
+  td { 
+    padding: 6px 0; /* Taille intermédiaire parfaite */
+    text-align: center; 
+    border-bottom: 1px solid rgba(255,255,255,0.03); 
+  }
+  td.habit-name { 
+    text-align: left; 
+    padding-left: 20px; 
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-weight: 700; 
+    color: var(--text-primary); 
+    cursor: text;
+  }
+  [contenteditable="true"] { outline: none; border-bottom: 1px dashed var(--accent-green); }
+
+  .row-controls { padding: 15px 20px; background: var(--bg-deep); border-top: 1px solid var(--border); display: flex; gap: 10px; }
+  .btn-control { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .btn-control:hover { background: var(--accent-green2); }
+
+  /* ZONE BASSE */
+  .bottom-section { display: flex; border-top: 1px solid var(--border); min-height: 400px; }
+  .notes-sidebar { width: 450px; padding: 20px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 20px; background: #0a0f35; }
+  
+  .todo-container { background: var(--bg-card); padding: 15px; border-radius: 10px; border: 1px solid var(--border); }
+  .todo-header { font-weight: 900; margin-bottom: 10px; color: var(--accent-green); font-size: 14px; }
+  .todo-input-wrap { display: flex; gap: 5px; margin-bottom: 10px; }
+  .todo-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; }
+  .todo-list { list-style: none; max-height: 150px; overflow-y: auto; }
+  .todo-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .todo-text.done { text-decoration: line-through; color: var(--text-dim); }
+
+  .postit-zone { flex: 1; background: rgba(0,0,0,0.2); border-radius: 10px; border: 1px dashed var(--border); position: relative; overflow: hidden; min-height: 250px; }
+  .postit {
+    position: absolute; width: 120px; min-height: 120px; padding: 10px;
+    background: #fdfd96; color: #333; border-radius: 5px; box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+    cursor: pointer; font-family: 'Arial', sans-serif; font-size: 12px; z-index: 10;
+  }
+  .postit .delete-p { position: absolute; top: 2px; right: 5px; cursor: pointer; font-weight: bold; }
+
+  .chart-block { flex: 1; padding: 20px; }
+  #historyModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg-card); border: 2px solid var(--accent-green); border-radius: 15px; padding: 25px; z-index: 1000; width: 400px; }
+  .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 999; }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeHistory()"></div>
+<div id="historyModal">
+  <h2 style="margin-bottom: 15px;">Historique</h2>
+  <div id="historyList"></div>
+  <button class="btn-control" style="margin-top: 20px; width: 100%;" onclick="closeHistory()">Fermer</button>
+</div>
+
+<div class="tracker-wrap">
+  <div class="top-bar">
+    <h1>Habit <span>Tracker</span></h1>
+    <div class="date-pickers">
+      <select id="monthSelect" onchange="changeDate()"></select>
+      <select id="yearSelect" onchange="changeDate()"></select>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table class="habit-table">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="row-controls">
+    <button class="btn-control" onclick="addRow()">+ Ajouter une ligne</button>
+    <button class="btn-control" onclick="removeLastRow()">- Supprimer dernière</button>
+    <button class="btn-control" onclick="openHistory()">🕒 Récupérer (Historique)</button>
+  </div>
+
+  <div class="bottom-section">
+    <div class="notes-sidebar">
+      <div class="todo-container">
+        <div class="todo-header">☑️ Tâches</div>
+        <div class="todo-input-wrap">
+          <input type="text" id="todoInput" class="todo-input" placeholder="Nouvelle tâche...">
+          <button class="btn-control" onclick="addTodo()">+</button>
+        </div>
+        <ul id="todoList" class="todo-list"></ul>
+      </div>
+
+      <div style="font-weight: 900; font-size: 14px; color: var(--accent-pink);">📌 Post-it (Cliquer pour déplacer/poser)</div>
+      <button class="btn-control" onclick="createPostIt()">+ Nouveau Post-it</button>
+      <div class="postit-zone" id="postitZone"></div>
+    </div>
+
+    <div class="chart-block">
+      <canvas id="prodChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- CONFIGURATION ---
+const MONTHS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+let currentYear = parseInt(localStorage.getItem('currentTrackerYear')) || 2026;
+let currentMonth = parseInt(localStorage.getItem('currentTrackerMonth')) || 3;
+
+let habitConfig = JSON.parse(localStorage.getItem('habitConfig')) || [
+  {id: 1, name: "30 min exercise 🏋️"}, {id: 2, name: "Boire 2L d'eau 💧"}, {id: 3, name: "Meditation 🧘"}
+];
+let historyConfig = JSON.parse(localStorage.getItem('historyConfig')) || [];
+let habitData = JSON.parse(localStorage.getItem(`data_${currentYear}_${currentMonth}`)) || {};
+let todos = JSON.parse(localStorage.getItem('todos')) || [];
+let postits = JSON.parse(localStorage.getItem('postits')) || [];
+
+function saveAll() {
+  localStorage.setItem('habitConfig', JSON.stringify(habitConfig));
+  localStorage.setItem('historyConfig', JSON.stringify(historyConfig));
+  localStorage.setItem(`data_${currentYear}_${currentMonth}`, JSON.stringify(habitData));
+  localStorage.setItem('todos', JSON.stringify(todos));
+  localStorage.setItem('postits', JSON.stringify(postits));
+  localStorage.setItem('currentTrackerYear', currentYear);
+  localStorage.setItem('currentTrackerMonth', currentMonth);
+}
+
+// --- TODO LIST ---
+function addTodo() {
+  const input = document.getElementById('todoInput');
+  if(!input.value) return;
+  todos.push({ text: input.value, done: false });
+  input.value = ""; saveAll(); renderTodos();
+}
+
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  list.innerHTML = "";
+  todos.forEach((t, i) => {
+    list.innerHTML += `<li class="todo-item">
+      <input type="checkbox" ${t.done?'checked':''} onchange="todos[${i}].done=!todos[${i}].done; saveAll(); renderTodos()">
+      <span class="todo-text ${t.done?'done':''}" contenteditable="true" onblur="todos[${i}].text=this.innerText; saveAll()">${t.text}</span>
+      <span style="cursor:pointer; margin-left:auto;" onclick="todos.splice(${i},1); saveAll(); renderTodos()">❌</span>
+    </li>`;
+  });
+}
+
+// --- POST-ITS ---
+let activePostIt = null;
+function createPostIt() {
+  postits.push({ id: Date.now(), text: "Note...", x: 10, y: 10 });
+  saveAll(); renderPostIts();
+}
+
+function renderPostIts() {
+  const zone = document.getElementById('postitZone');
+  zone.innerHTML = "";
+  postits.forEach((p) => {
+    const el = document.createElement('div');
+    el.className = 'postit';
+    el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
+    el.innerHTML = `<span class="delete-p" onclick="event.stopPropagation(); deletePostIt(${p.id})">×</span>
+                    <div contenteditable="true" onfocus="activePostIt=null" onblur="updatePostIt(${p.id}, this.innerText)">${p.text}</div>`;
+    el.onclick = (e) => {
+      e.stopPropagation();
+      if (!activePostIt) {
+        activePostIt = { el: el, data: p, shiftX: e.offsetX, shiftY: e.offsetY };
+        el.style.zIndex = 1000; el.style.opacity = "0.8";
+      } else {
+        activePostIt = null; el.style.zIndex = 10; el.style.opacity = "1"; saveAll();
+      }
+    };
+    zone.appendChild(el);
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (activePostIt) {
+    const zone = document.getElementById('postitZone').getBoundingClientRect();
+    let x = e.clientX - zone.left - activePostIt.shiftX;
+    let y = e.clientY - zone.top - activePostIt.shiftY;
+    x = Math.max(0, Math.min(x, zone.width - 120));
+    y = Math.max(0, Math.min(y, zone.height - 120));
+    activePostIt.el.style.left = x + 'px'; activePostIt.el.style.top = y + 'px';
+    activePostIt.data.x = x; activePostIt.data.y = y;
+  }
+});
+
+function updatePostIt(id, txt) { const p = postits.find(x => x.id === id); if(p) p.text = txt; saveAll(); }
+function deletePostIt(id) { postits = postits.filter(x => x.id !== id); saveAll(); renderPostIts(); }
+
+// --- TRACKER CORE ---
+function render() {
+  const days = new Date(currentYear, currentMonth + 1, 0).getDate();
+  let head = `<tr><th class="col-habit">Habitudes</th>`;
+  for(let i=1; i<=days; i++) head += `<th class="col-day">${i}</th>`;
+  document.getElementById('tableHead').innerHTML = head + `</tr>`;
+
+  let body = "";
+  habitConfig.forEach((h) => {
+    body += `<tr><td class="habit-name" contenteditable="true" onblur="h.name=this.innerText; saveAll()">${h.name}</td>`;
+    for(let d=1; d<=days; d++) {
+      const checked = habitData[`${h.id}_${d}`] ? 'checked' : '';
+      body += `<td><input type="checkbox" id="c${h.id}_${d}" ${checked} onchange="toggleHabit('${h.id}',${d})" style="display:none">
+              <label for="c${h.id}_${d}" style="display:inline-block; width:20px; height:20px; border:2px solid var(--check-border); border-radius:4px; cursor:pointer; background:${checked?'var(--accent-green2)':'transparent'}"></label></td>`;
+    }
+    body += `</tr>`;
+  });
+  document.getElementById('tableBody').innerHTML = body;
+  updateChart(days);
+}
+
+window.toggleHabit = (id, d) => { habitData[`${id}_${d}`] = !habitData[`${id}_${d}`]; saveAll(); render(); };
+window.addRow = () => { habitConfig.push({id: Date.now(), name: "Nouvelle habitude"}); saveAll(); render(); };
+window.removeLastRow = () => { if(habitConfig.length>0){ historyConfig.push(habitConfig.pop()); saveAll(); render(); } };
+window.openHistory = () => {
+  const list = document.getElementById('historyList');
+  list.innerHTML = historyConfig.length===0 ? "Vide" : "";
+  historyConfig.forEach((h, i) => { list.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>${h.name}</span><button onclick="restore(${i})">Restaurer</button></div>`; });
+  document.getElementById('historyModal').style.display='block'; document.getElementById('overlay').style.display='block';
+};
+window.restore = (i) => { habitConfig.push(historyConfig.splice(i,1)[0]); saveAll(); render(); closeHistory(); };
+window.closeHistory = () => { document.getElementById('historyModal').style.display='none'; document.getElementById('overlay').style.display='none'; };
+
+function updateChart(days) {
+  const ctx = document.getElementById('prodChart').getContext('2d');
+  let dataArr = [];
+  for(let d=1; d<=days; d++) {
+    let done = 0; habitConfig.forEach(h => { if(habitData[`${h.id}_${d}`]) done++; });
+    dataArr.push(Math.round((done / habitConfig.length) * 100) || 0);
+  }
+  if(window.myChart) window.myChart.destroy();
+  window.myChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: Array.from({length: days}, (_, i) => i + 1), datasets: [{ data: dataArr, borderColor: '#f06292', tension: 0.4, fill: true, backgroundColor: 'rgba(240,98,146,0.1)' }] },
+    options: { plugins: {legend: {display: false}}, scales: { y: {min:0, max:100, ticks:{color:'#7986cb'}}, x: {ticks:{color:'#7986cb'}}} }
+  });
+}
+
+const mSelect = document.getElementById('monthSelect');
+MONTHS_FR.forEach((m, idx) => mSelect.add(new Option(m, idx, false, idx===currentMonth)));
+const ySelect = document.getElementById('yearSelect');
+for(let y=2024; y<=2030; y++) ySelect.add(new Option(y, y, false, y===currentYear));
+
+function changeDate() {
+  currentYear = parseInt(document.getElementById('yearSelect').value);
+  currentMonth = parseInt(document.getElementById('monthSelect').value);
+  habitData = JSON.parse(localStorage.getItem(`data_${currentYear}_${currentMonth}`)) || {};
+  saveAll(); render();
+}
+
+render(); renderTodos(); renderPostIts();
+</script>
+</body>
+</html>

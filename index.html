@@ -231,7 +231,9 @@ function render() {
 
   let body = "";
   habitConfig.forEach((h) => {
-    body += `<tr><td class="habit-name" contenteditable="true" onblur="h.name=this.innerText; saveAll()">${h.name}</td>`;
+    body += `<tr><td class="habit-name" contenteditable="true" 
+    oninput="habitConfig.find(x => x.id == ${h.id}).name = this.innerText; saveAll()" 
+    onblur="saveAll()">${h.name}</td>`;
     for(let d=1; d<=days; d++) {
       const checked = habitData[`${h.id}_${d}`] ? 'checked' : '';
       body += `<td><input type="checkbox" id="c${h.id}_${d}" ${checked} onchange="toggleHabit('${h.id}',${d})" style="display:none">
